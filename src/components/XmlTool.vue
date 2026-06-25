@@ -1,89 +1,102 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { beautifyXml, minifyXml, validateXml } from '../composables/xml'
+import { ref, watch } from 'vue'
+import { useXmlEditor } from '../composables/useXmlEditor'
+import { beautifyXml, validateXml } from '../composables/xml'
+import XmlPane from './XmlPane.vue'
 
-const text = ref(
-  '<note>\n  <to>Tove</to>\n  <from>Jani</from>\n  <heading>Reminder</heading>\n  <body>Don\'t forget this weekend!</body>\n</note>',
+const sample =
+  '<note>\n  <to>Tove</to>\n  <from>Jani</from>\n  <heading>Reminder</heading>\n  <body>Don\'t forget this weekend!</body>\n</note>'
+
+const autoFormat = ref(true)
+const left = useXmlEditor(sample)
+const right = useXmlEditor('')
+
+/** Beautify XML text; returns '' for empty and null when it's invalid. */
+function tryBeautify(src: string): string | null {
+  if (!src.trim()) return ''
+  return validateXml(src) ? null : beautifyXml(src)
+}
+
+// With auto-format on, mirror a beautified copy of the source (left) pane into
+// the compare (right) pane as the user types or pastes.
+watch(
+  [() => left.text.value, autoFormat],
+  () => {
+    if (!autoFormat.value) return
+    const formatted = tryBeautify(left.text.value)
+    if (formatted !== null) right.text.value = formatted
+  },
+  { immediate: true },
 )
-const copied = ref(false)
 
-const error = computed(() => validateXml(text.value))
-const status = computed(() => {
-  if (!text.value.trim()) return { label: 'Empty', cls: 'text-[var(--muted)]' }
-  return error.value
-    ? { label: 'Invalid XML', cls: 'text-[var(--red)]' }
-    : { label: 'Valid XML', cls: 'text-[var(--green)]' }
-})
-
-function beautify() {
-  if (!error.value) text.value = beautifyXml(text.value)
+function copyRight() {
+  right.text.value = left.text.value
 }
-function minify() {
-  if (!error.value) text.value = minifyXml(text.value)
+function copyLeft() {
+  left.text.value = right.text.value
 }
-async function copy() {
-  await navigator.clipboard.writeText(text.value)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 900)
+function swap() {
+  const tmp = left.text.value
+  left.text.value = right.text.value
+  right.text.value = tmp
 }
 </script>
 
 <template>
-  <section
-    class="flex flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-white"
-  >
-    <header class="flex items-center gap-1 border-b border-[var(--border)] px-3 py-2.5">
-      <span class="text-sm font-semibold">XML Formatter</span>
-      <div class="ml-auto flex gap-1">
-        <button
-          class="rounded-md border border-[var(--border)] bg-white px-2.5 py-1 text-xs font-medium hover:bg-[var(--bg)]"
-          @click="beautify"
+  <div class="flex flex-col gap-3">
+    <div class="flex items-center justify-end px-1">
+      <button
+        class="flex items-center gap-2 text-[13px] font-medium text-[var(--muted)]"
+        title="Auto-format the SOURCE pane into the COMPARE pane"
+        @click="autoFormat = !autoFormat"
+      >
+        Auto-format
+        <span
+          class="relative h-5 w-9 rounded-full transition-colors"
+          :class="autoFormat ? 'bg-[var(--accent)]' : 'bg-[var(--border)]'"
         >
-          Beautify
+          <span
+            class="absolute top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-all"
+            :class="autoFormat ? 'left-[18px]' : 'left-0.5'"
+          ></span>
+        </span>
+      </button>
+    </div>
+
+    <div class="flex flex-col items-stretch gap-4 md:flex-row">
+      <XmlPane :editor="left" label="SOURCE" />
+
+      <div class="flex flex-row justify-center gap-2.5 md:flex-col">
+        <button
+          class="grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[var(--border)] bg-[var(--panel)] text-[var(--accent)] transition-colors hover:bg-[var(--accent-soft)]"
+          title="Swap"
+          @click="swap"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7 4 3 8l4 4M3 8h14M17 20l4-4-4-4M21 16H7" />
+          </svg>
         </button>
         <button
-          class="rounded-md border border-[var(--border)] bg-white px-2.5 py-1 text-xs font-medium hover:bg-[var(--bg)]"
-          @click="minify"
+          class="grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[var(--border)] bg-[var(--panel)] text-[var(--muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+          title="Copy left → right"
+          @click="copyRight"
         >
-          Minify
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M5 12h14M13 6l6 6-6 6" />
+          </svg>
         </button>
         <button
-          class="rounded-md px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--gutter)]"
-          title="Copy"
-          @click="copy"
+          class="grid h-[34px] w-[34px] place-items-center rounded-[9px] border border-[var(--border)] bg-[var(--panel)] text-[var(--muted)] transition-colors hover:border-[var(--accent)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+          title="Copy right → left"
+          @click="copyLeft"
         >
-          {{ copied ? '✓' : '⧉' }}
-        </button>
-        <button
-          class="rounded-md px-2 py-1 text-sm text-[var(--muted)] hover:bg-[var(--gutter)]"
-          title="Clear"
-          @click="text = ''"
-        >
-          🗑
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 12H5M11 6l-6 6 6 6" />
+          </svg>
         </button>
       </div>
-    </header>
 
-    <textarea
-      v-model="text"
-      spellcheck="false"
-      class="min-h-[420px] flex-1 resize-none whitespace-pre p-3 font-[var(--mono)] text-[12.5px] leading-[1.55] outline-none"
-    ></textarea>
-
-    <p
-      v-if="error"
-      class="border-t border-[var(--border)] bg-[#fafbfc] px-3 py-2 font-[var(--mono)] text-[11.5px] text-[var(--red)]"
-    >
-      ⚠ {{ error }}
-    </p>
-
-    <footer
-      class="flex items-center border-t border-[var(--border)] bg-[#fafbfc] px-3 py-1.5 text-[11.5px] text-[var(--muted)]"
-    >
-      <span class="ml-auto flex items-center gap-1.5 font-semibold" :class="status.cls">
-        <span class="h-2 w-2 rounded-full bg-current"></span>
-        {{ status.label }}
-      </span>
-    </footer>
-  </section>
+      <XmlPane :editor="right" label="COMPARE" :readonly="autoFormat" />
+    </div>
+  </div>
 </template>

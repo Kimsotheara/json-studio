@@ -18,13 +18,13 @@ function kind(v: JsonValue): string {
 function valueClass(v: JsonValue): string {
   switch (kind(v)) {
     case 'string':
-      return 'text-[var(--green)]'
+      return 'text-[var(--tok-string)]'
     case 'number':
-      return 'text-[#c18401]'
+      return 'text-[var(--tok-number)]'
     case 'boolean':
-      return 'text-[var(--accent)]'
+      return 'text-[var(--tok-bool)]'
     default:
-      return 'text-[var(--muted)]'
+      return 'text-[var(--tok-null)]'
   }
 }
 
@@ -54,7 +54,7 @@ function summary(v: JsonValue): string {
       >
         ▸
       </span>
-      <span v-if="nodeKey !== undefined" class="text-[#8959a8]">"{{ nodeKey }}"</span>
+      <span v-if="nodeKey !== undefined" class="font-semibold text-[var(--tok-key)]">"{{ nodeKey }}"</span>
       <span v-if="nodeKey !== undefined" class="text-[var(--muted)]">:&nbsp;</span>
       <span class="text-[var(--gutter-text)]">{{ summary(value) }}</span>
     </button>
@@ -64,7 +64,7 @@ function summary(v: JsonValue): string {
   </div>
 
   <div v-else class="ml-7">
-    <span v-if="nodeKey !== undefined" class="text-[#8959a8]">"{{ nodeKey }}"</span>
+    <span v-if="nodeKey !== undefined" class="font-semibold text-[var(--tok-key)]">"{{ nodeKey }}"</span>
     <span v-if="nodeKey !== undefined" class="text-[var(--muted)]">:&nbsp;</span>
     <span :class="valueClass(value)">
       <template v-if="kind(value) === 'string'">"{{ value }}"</template>
