@@ -1,0 +1,28 @@
+@import 'tailwindcss';
+
+:root {
+  --bg: #f5f6f8;
+  --panel: #ffffff;
+  --border: #e3e6ea;
+  --text: #2b2f36;
+  --muted: #8b929c;
+  --accent: #5b6cff;
+  --accent-soft: #eef0ff;
+  --green: #1f9d55;
+  --red: #e02d3c;
+  --gutter: #f0f2f5;
+  --gutter-text: #b3b9c2;
+  --mono: 'SF Mono', ui-monospace, 'Menlo', 'Consolas', monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+}

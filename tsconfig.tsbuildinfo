@@ -1,0 +1,1 @@
+{"root":["./src/main.ts","./src/vite-env.d.ts","./src/composables/usejsoneditor.ts","./src/composables/xml.ts","./src/types/index.ts","./src/app.vue","./src/components/base64tool.vue","./src/components/editorpane.vue","./src/components/iplookuptool.vue","./src/components/jsontreenode.vue","./src/components/uuidtool.vue","./src/components/xmltool.vue"],"version":"5.6.3"}
