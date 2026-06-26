@@ -22,22 +22,3 @@ npm run dev      # start dev server
 npm run build    # type-check + production build
 npm run preview  # preview the production build
 ```
-
-## Project structure
-
-```
-src/
-  App.vue                  # top bar, tabs, compare layout
-  components/
-    EditorPane.vue         # one editor pane (code/tree, toolbar, status)
-    JsonTreeNode.vue       # recursive tree renderer
-    XmlTool.vue            # XML beautify / minify / validate
-    Base64Tool.vue
-    UuidTool.vue
-    IpLookupTool.vue       # IP geolocation via ipapi.co
-  composables/
-    useJsonEditor.ts       # buffer state, validation, beautify/minify
-    xml.ts                 # XML format/validate helpers
-  types/
-    index.ts               # shared TypeScript types
-```
