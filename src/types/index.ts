@@ -1,6 +1,6 @@
 export type EditorView = 'code' | 'tree'
 
-export type TabKey = 'editor' | 'xml' | 'base64' | 'uuid' | 'iplookup'
+export type TabKey = 'editor' | 'xml' | 'd2' | 'sql' | 'apidocs' | 'email' | 'base64' | 'uuid' | 'iplookup'
 
 export interface ValidationResult {
   state: 'valid' | 'invalid' | 'empty'

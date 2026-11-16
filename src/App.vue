@@ -1,12 +1,18 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, ref, watch } from 'vue'
 import type { TabKey } from './types'
 import { useJsonEditor } from './composables/useJsonEditor'
 import EditorPane from './components/EditorPane.vue'
 import XmlTool from './components/XmlTool.vue'
+import D2Tool from './components/D2Tool.vue'
 import Base64Tool from './components/Base64Tool.vue'
 import UuidTool from './components/UuidTool.vue'
 import IpLookupTool from './components/IpLookupTool.vue'
+import EmailTool from './components/EmailTool.vue'
+import ApiDocsTool from './components/ApiDocsTool.vue'
+
+// sql-formatter ships every dialect (~300 kB), so load it only when the tab opens.
+const SqlTool = defineAsyncComponent(() => import('./components/SqlTool.vue'))
 
 const sample = JSON.stringify(
   {
@@ -28,9 +34,14 @@ const sample = JSON.stringify(
 const tabs: { key: TabKey; label: string }[] = [
   { key: 'editor', label: 'Editor' },
   { key: 'xml', label: 'XML' },
+  { key: 'd2', label: 'D2' },
+  { key: 'sql', label: 'SQL' },
   { key: 'base64', label: 'Base64' },
   { key: 'uuid', label: 'UUID' },
   { key: 'iplookup', label: 'IP Lookup' },
+  { key: 'apidocs', label: 'API Docs' },
+  // Email always stays last — add new tabs above this line.
+  { key: 'email', label: 'Email' },
 ]
 const activeTab = ref<TabKey>('editor')
 
@@ -215,6 +226,10 @@ function swap() {
     </div>
 
     <XmlTool v-else-if="activeTab === 'xml'" />
+    <D2Tool v-else-if="activeTab === 'd2'" :dark="dark" />
+    <SqlTool v-else-if="activeTab === 'sql'" />
+    <ApiDocsTool v-else-if="activeTab === 'apidocs'" />
+    <EmailTool v-else-if="activeTab === 'email'" />
     <Base64Tool v-else-if="activeTab === 'base64'" />
     <UuidTool v-else-if="activeTab === 'uuid'" />
     <IpLookupTool v-else-if="activeTab === 'iplookup'" />

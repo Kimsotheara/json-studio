@@ -10,6 +10,12 @@
     "type-check": "vue-tsc --noEmit"
   },
   "dependencies": {
+    "@terrastruct/d2": "^0.1.33",
+    "docx": "^9.15.4",
+    "jspdf": "^4.2.1",
+    "jspdf-autotable": "^5.0.9",
+    "node-sql-parser": "^5.4.0",
+    "sql-formatter": "^15.9.0",
     "vue": "^3.5.13"
   },
   "devDependencies": {
