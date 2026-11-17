@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref } from 'vue'
 import {
   applyOverrides,
   buildCurl,
@@ -15,8 +15,16 @@ import {
   type Overrides,
   type SectionKey,
 } from '../composables/apiDocs'
+import { downloadText } from '../composables/download'
 import { highlightLines } from '../composables/highlight'
+import { loadStored, useAutoSave } from '../composables/storage'
 import CodeArea, { type CodeError } from './CodeArea.vue'
+import AppButton from './ui/AppButton.vue'
+import AppPanel from './ui/AppPanel.vue'
+import CopyButton from './ui/CopyButton.vue'
+import FieldLabel from './ui/FieldLabel.vue'
+import SegmentedControl from './ui/SegmentedControl.vue'
+import TextInput from './ui/TextInput.vue'
 
 const METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE']
 
@@ -62,30 +70,11 @@ const EMPTY: ApiInput = {
 /* ---------- draft persistence (per-browser convenience) ---------- */
 
 const STORE = 'json-studio-apidoc-draft'
-function loadDraft(): { input: ApiInput; overrides: Overrides } {
-  try {
-    const d = JSON.parse(localStorage.getItem(STORE) ?? 'null')
-    if (d?.input) return { input: { ...EMPTY, ...d.input }, overrides: d.overrides ?? {} }
-  } catch {
-    /* ignore */
-  }
-  return { input: { ...SAMPLE }, overrides: {} }
-}
-const draft = loadDraft()
-const input = reactive<ApiInput>(draft.input)
-const overrides = reactive<Overrides>(draft.overrides)
+const draft = loadStored<{ input?: Partial<ApiInput>; overrides?: Overrides }>(STORE)
+const input = reactive<ApiInput>(draft?.input ? { ...EMPTY, ...draft.input } : { ...SAMPLE })
+const overrides = reactive<Overrides>(draft?.input ? (draft.overrides ?? {}) : {})
 
-let saveTimer: ReturnType<typeof setTimeout> | undefined
-watch([input, overrides], () => {
-  clearTimeout(saveTimer)
-  saveTimer = setTimeout(() => {
-    try {
-      localStorage.setItem(STORE, JSON.stringify({ input, overrides }))
-    } catch {
-      /* ignore */
-    }
-  }, 300)
-}, { deep: true })
+useAutoSave(STORE, [input, overrides], () => ({ input, overrides }), 300)
 
 function loadSample() {
   Object.assign(input, SAMPLE)
@@ -190,11 +179,11 @@ const pretty = (json: string) => {
 /* ---------- output ---------- */
 
 type View = 'preview' | 'markdown' | 'openapi' | 'curl'
-const VIEWS: { key: View; label: string }[] = [
-  { key: 'preview', label: 'Preview' },
-  { key: 'markdown', label: 'Markdown' },
-  { key: 'openapi', label: 'OpenAPI' },
-  { key: 'curl', label: 'cURL' },
+const VIEWS: { value: View; label: string }[] = [
+  { value: 'preview', label: 'Preview' },
+  { value: 'markdown', label: 'Markdown' },
+  { value: 'openapi', label: 'OpenAPI' },
+  { value: 'curl', label: 'cURL' },
 ]
 const view = ref<View>('preview')
 
@@ -209,19 +198,6 @@ const slug = computed(
   () => (input.title.trim() || 'api-doc').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'api-doc',
 )
 
-const copied = ref(false)
-async function copyOutput() {
-  await navigator.clipboard.writeText(outputText.value)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 1000)
-}
-function saveText(text: string, filename: string, type: string) {
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(new Blob([text], { type }))
-  a.download = filename
-  a.click()
-  URL.revokeObjectURL(a.href)
-}
 
 type Format = 'pdf' | 'docx' | 'md' | 'yaml' | 'sh'
 const FORMATS: { key: Format; label: string; ext: string }[] = [
@@ -241,9 +217,9 @@ async function download(format: Format) {
   menuOpen.value = false
   exportError.value = ''
   exportNote.value = ''
-  if (format === 'md') return saveText(markdown.value, `${slug.value}.md`, 'text/markdown')
-  if (format === 'yaml') return saveText(openapi.value, `${slug.value}.openapi.yaml`, 'application/yaml')
-  if (format === 'sh') return saveText(curl.value, `${slug.value}.sh`, 'text/plain')
+  if (format === 'md') return downloadText(markdown.value, `${slug.value}.md`, 'text/markdown')
+  if (format === 'yaml') return downloadText(openapi.value, `${slug.value}.openapi.yaml`, 'application/yaml')
+  if (format === 'sh') return downloadText(curl.value, `${slug.value}.sh`, 'text/plain')
   exporting.value = format
   try {
     // The PDF / Word libraries are loaded on first use.
@@ -275,33 +251,24 @@ const METHOD_COLORS: Record<string, string> = {
   DELETE: 'var(--red)',
 }
 
-const inputClass =
-  'w-full rounded-lg border border-[var(--border)] bg-[var(--panel-soft)] px-3 py-2 text-[13px] text-[var(--text)] caret-[var(--accent)] outline-none transition-colors placeholder:text-[var(--muted)]/70 focus:border-[var(--accent)]'
-const labelClass = 'mb-1 block text-[11px] font-semibold tracking-wide text-[var(--muted)] uppercase'
-const cardClass = 'overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--panel)]'
-const smallBtn =
-  'rounded-md px-2 py-1 text-xs font-medium text-[var(--muted)] transition-colors hover:bg-[var(--ctrl-bg)] hover:text-[var(--text)]'
 </script>
 
 <template>
   <div class="grid grid-cols-1 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
     <!-- Inputs -->
     <div class="flex min-w-0 flex-col gap-4">
-      <section :class="cardClass">
-        <header class="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2.5">
-          <span class="text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)]">ENDPOINT</span>
-          <div class="ml-auto flex gap-1">
-            <button :class="smallBtn" @click="loadSample">Load sample</button>
-            <button :class="smallBtn" class="hover:!text-[var(--red)]" @click="clearAll">Clear all</button>
-          </div>
-        </header>
+      <AppPanel label="ENDPOINT">
+        <template #actions>
+          <AppButton variant="ghost" @click="loadSample">Load sample</AppButton>
+          <AppButton variant="ghost" danger @click="clearAll">Clear all</AppButton>
+        </template>
         <div class="flex flex-col gap-3 p-4">
           <div>
-            <label :class="labelClass">API name</label>
-            <input v-model="input.title" placeholder="Get Account Balance" :class="inputClass" />
+            <FieldLabel>API name</FieldLabel>
+            <TextInput v-model="input.title" placeholder="Get Account Balance" />
           </div>
           <div>
-            <label :class="labelClass">Method &amp; URL</label>
+            <FieldLabel>Method &amp; URL</FieldLabel>
             <div class="flex gap-2">
               <select
                 v-model="input.method"
@@ -310,11 +277,10 @@ const smallBtn =
               >
                 <option v-for="m in METHODS" :key="m" :value="m">{{ m }}</option>
               </select>
-              <input
+              <TextInput
                 v-model="input.url"
+                mono
                 placeholder="https://api.example.com/v1/accounts/{accountNo}?currency=USD"
-                :class="inputClass"
-                class="font-[family-name:var(--mono)] !text-[12.5px]"
               />
             </div>
             <p class="mt-1 text-[11px] text-[var(--muted)]">
@@ -322,27 +288,21 @@ const smallBtn =
             </p>
           </div>
           <div>
-            <label :class="labelClass">Description</label>
-            <textarea v-model="input.description" rows="2" placeholder="What does this API do?" :class="inputClass" class="resize-y"></textarea>
+            <FieldLabel>Description</FieldLabel>
+            <TextInput v-model="input.description" multiline rows="2" placeholder="What does this API do?" />
           </div>
           <div>
-            <label :class="labelClass">Headers <span class="normal-case">(one per line: Name: value)</span></label>
-            <textarea
-              v-model="input.headers"
-              rows="3"
-              spellcheck="false"
-              :class="inputClass"
-              class="resize-y font-[family-name:var(--mono)] !text-[12.5px]"
-            ></textarea>
+            <FieldLabel>Headers <span class="normal-case">(one per line: Name: value)</span></FieldLabel>
+            <TextInput v-model="input.headers" multiline mono rows="3" />
           </div>
         </div>
-      </section>
+      </AppPanel>
 
-      <section v-for="b in BODIES" :key="b.key" :class="cardClass" class="flex flex-col">
-        <header class="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-3 py-2.5">
-          <span class="text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)]">{{ b.label }}</span>
+      <AppPanel v-for="b in BODIES" :key="b.key" :label="b.label">
+        <template #title>
           <span class="text-[11px] text-[var(--muted)]">{{ b.hint }}</span>
-          <div class="ml-auto flex items-center gap-1.5">
+        </template>
+        <template #actions>
             <label v-if="b.status" class="flex items-center gap-1 text-[11px] text-[var(--muted)]">
               Status
               <input
@@ -350,10 +310,9 @@ const smallBtn =
                 class="w-14 rounded-md border border-[var(--border)] bg-[var(--panel-soft)] px-1.5 py-1 text-center font-[family-name:var(--mono)] text-[12px] text-[var(--text)] outline-none focus:border-[var(--accent)]"
               />
             </label>
-            <button :class="smallBtn" :disabled="!parsed[b.key].ok" @click="formatBody(b.key)">Format</button>
-            <button :class="smallBtn" class="hover:!text-[var(--red)]" @click="input[b.key] = ''">Clear</button>
-          </div>
-        </header>
+            <AppButton variant="ghost" :disabled="!parsed[b.key].ok" @click="formatBody(b.key)">Format</AppButton>
+            <AppButton variant="ghost" danger @click="input[b.key] = ''">Clear</AppButton>
+        </template>
         <CodeArea
           :ref="(el) => (areas[b.key] = (el as InstanceType<typeof CodeArea>) ?? undefined)"
           v-model="input[b.key]"
@@ -361,58 +320,38 @@ const smallBtn =
           :errors="bodyErrors(b.key)"
           min-height="170px"
         />
-        <footer
-          class="flex items-center border-t border-[var(--border)] bg-[var(--panel-soft)] px-3 py-1.5 text-[11.5px] font-semibold"
-        >
+        <template #footer>
           <button
             v-if="!parsed[b.key].ok"
-            class="truncate text-[var(--red)] hover:underline"
+            class="truncate font-semibold text-[var(--red)] hover:underline"
             title="Jump to error"
             @click="jumpToError(b.key)"
           >
             ✕ {{ errorMessage(b.key) }}
           </button>
-          <span v-else-if="isEmptyBody(b.key)" class="text-[var(--muted)]">Empty — not included</span>
-          <span v-else class="text-[var(--green)]">✓ Valid JSON</span>
-        </footer>
-      </section>
+          <span v-else-if="isEmptyBody(b.key)" class="font-semibold">Empty — not included</span>
+          <span v-else class="font-semibold text-[var(--green)]">✓ Valid JSON</span>
+        </template>
+      </AppPanel>
     </div>
 
     <!-- Output -->
-    <section :class="cardClass" class="xl:sticky xl:top-4">
-      <header class="flex flex-wrap items-center gap-2 border-b border-[var(--border)] px-3 py-2">
-        <div class="flex rounded-lg bg-[var(--ctrl-bg)] p-0.5 text-xs font-medium">
-          <button
-            v-for="v in VIEWS"
-            :key="v.key"
-            class="rounded-md px-3 py-1.5 transition-colors"
-            :class="
-              view === v.key
-                ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)]'
-                : 'text-[var(--muted)] hover:text-[var(--text)]'
-            "
-            @click="view = v.key"
-          >
-            {{ v.label }}
-          </button>
-        </div>
-        <div class="ml-auto flex items-center gap-1.5">
-          <button
-            class="rounded-lg border border-[var(--border)] bg-[var(--panel)] px-3 py-1.5 text-xs font-medium text-[var(--text)] transition-colors hover:border-[var(--accent)] hover:text-[var(--accent)]"
+    <AppPanel class="xl:sticky xl:top-4">
+      <template #title>
+        <SegmentedControl v-model="view" :options="VIEWS" variant="solid" />
+      </template>
+      <template #actions>
+          <CopyButton
+            variant="outline"
+            :text="outputText"
+            :label="view === 'preview' ? 'Copy Markdown' : 'Copy'"
             :title="view === 'preview' ? 'Copy as Markdown' : 'Copy'"
-            @click="copyOutput"
-          >
-            {{ copied ? '✓ Copied' : view === 'preview' ? 'Copy Markdown' : 'Copy' }}
-          </button>
+          />
           <div class="relative" data-download-menu>
-            <button
-              class="inline-flex items-center gap-1.5 rounded-lg bg-[var(--accent)] px-3 py-1.5 text-xs font-semibold text-[var(--tab-active-text)] transition-opacity hover:opacity-90 disabled:opacity-60"
-              :disabled="!!exporting"
-              @click="menuOpen = !menuOpen"
-            >
+            <AppButton variant="primary" :disabled="!!exporting" @click="menuOpen = !menuOpen">
               <span v-if="exporting" class="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
               {{ exporting ? `Creating ${exporting === 'pdf' ? 'PDF' : 'Word'}…` : 'Download ▾' }}
-            </button>
+            </AppButton>
             <div
               v-if="menuOpen"
               class="absolute right-0 z-20 mt-1 w-52 overflow-hidden rounded-lg border border-[var(--border)] bg-[var(--panel)] py-1 shadow-lg"
@@ -428,8 +367,7 @@ const smallBtn =
               </button>
             </div>
           </div>
-        </div>
-      </header>
+      </template>
       <p v-if="exportNote" class="border-b border-[var(--border)] bg-[var(--accent-soft)] px-4 py-2 text-[12px] text-[var(--accent)]">
         ℹ {{ exportNote }}
       </p>
@@ -520,6 +458,6 @@ const smallBtn =
         v-else
         class="m-0 max-h-[calc(100vh-150px)] overflow-auto px-4 py-3.5 font-[family-name:var(--mono)] text-[12px] leading-[1.6] whitespace-pre text-[var(--text)]"
       >{{ outputText }}</pre>
-    </section>
+    </AppPanel>
   </div>
 </template>

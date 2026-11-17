@@ -115,3 +115,34 @@ function highlightSqlLine(line: string): string {
 export function highlightSqlLines(src: string): string[] {
   return src.split('\n').map(highlightSqlLine)
 }
+
+/* ---- DBML ---- */
+
+const DBML_KEYWORDS = new Set(
+  'table ref enum project note indexes tablegroup as pk increment unique not null default primary key delete update cascade restrict headercolor'.split(' '),
+)
+
+const DBML_TOKEN =
+  /(\/\/.*$)|('(?:\\.|[^'\\])*'?|"(?:\\.|[^"\\])*"?|`[^`]*`?)|\b(\d+(?:\.\d+)?)\b|([A-Za-z_]\w*)|(<>|[<>\-](?=\s)|[{}\[\]():,.])/g
+
+function highlightDbmlLine(line: string): string {
+  let out = ''
+  let last = 0
+  for (const m of line.matchAll(DBML_TOKEN)) {
+    const [, comment, str, num, word, punc] = m
+    let html: string
+    if (comment !== undefined) html = `<span class="tk-null">${escape(comment)}</span>`
+    else if (str !== undefined) html = `<span class="tk-str">${escape(str)}</span>`
+    else if (num !== undefined) html = `<span class="tk-num">${num}</span>`
+    else if (word !== undefined)
+      html = DBML_KEYWORDS.has(word.toLowerCase()) ? `<span class="tk-bool">${word}</span>` : escape(word)
+    else html = `<span class="tk-punc">${escape(punc ?? '')}</span>`
+    out += escape(line.slice(last, m.index)) + html
+    last = m.index + m[0].length
+  }
+  return out + escape(line.slice(last))
+}
+
+export function highlightDbmlLines(src: string): string[] {
+  return src.split('\n').map(highlightDbmlLine)
+}

@@ -3,6 +3,12 @@ import { computed, ref, watch } from 'vue'
 import { format, type KeywordCase, type SqlLanguage } from 'sql-formatter'
 import { highlightSqlLines } from '../composables/highlight'
 import CodeArea, { type CodeError } from './CodeArea.vue'
+import AppButton from './ui/AppButton.vue'
+import AppPanel from './ui/AppPanel.vue'
+import AppSelect from './ui/AppSelect.vue'
+import CopyButton from './ui/CopyButton.vue'
+import IconButton from './ui/IconButton.vue'
+import SegmentedControl from './ui/SegmentedControl.vue'
 
 const sample =
   "select u.id, u.name, count(o.id) as orders from users u left join orders o on o.user_id = u.id where u.active = true and u.created_at >= '2024-01-01' group by u.id, u.name having count(o.id) > 5 order by orders desc limit 10;"
@@ -46,12 +52,26 @@ const validators: Partial<Record<SqlLanguage, { db: string; load: () => Promise<
   hive: { db: 'hive', load: () => import('node-sql-parser/build/hive') },
 }
 
+const KEYWORD_CASES: { value: KeywordCase; label: string }[] = [
+  { value: 'upper', label: 'UPPER keywords' },
+  { value: 'lower', label: 'lower keywords' },
+  { value: 'preserve', label: 'Preserve case' },
+]
+const INDENTS = [
+  { value: '2', label: '2 spaces' },
+  { value: '4', label: '4 spaces' },
+  { value: 'tab', label: 'Tabs' },
+] as const
+const MODES = [
+  { value: 'format', label: 'Format' },
+  { value: 'minify', label: 'Minify' },
+] as const
+
 const source = ref(sample)
 const dialect = ref<SqlLanguage>('sql')
 const keywordCase = ref<KeywordCase>('upper')
 const indent = ref<'2' | '4' | 'tab'>('2')
 const mode = ref<'format' | 'minify'>('format')
-const copied = ref(false)
 const inputArea = ref<InstanceType<typeof CodeArea> | null>(null)
 
 /** Collapse whitespace and drop comments, leaving quoted strings untouched. */
@@ -156,13 +176,6 @@ const output = computed(() => {
 const sourceLines = computed(() => source.value.split('\n').length)
 const outputLines = computed(() => (output.value ? output.value.split('\n').length : 0))
 
-async function copy() {
-  if (!output.value) return
-  await navigator.clipboard.writeText(output.value)
-  copied.value = true
-  setTimeout(() => (copied.value = false), 900)
-}
-
 function useOutput() {
   if (output.value) source.value = output.value
 }
@@ -170,68 +183,18 @@ function useOutput() {
 
 <template>
   <div class="flex flex-col gap-3">
-    <div class="flex flex-wrap items-center justify-end gap-2 px-1 text-xs font-medium">
-      <select
-        v-model="dialect"
-        class="rounded-lg bg-[var(--ctrl-bg)] px-2 py-1.5 text-[var(--text)] outline-none"
-        title="SQL dialect"
-      >
-        <option v-for="d in dialects" :key="d.value" :value="d.value">{{ d.label }}</option>
-      </select>
-      <select
-        v-model="keywordCase"
-        class="rounded-lg bg-[var(--ctrl-bg)] px-2 py-1.5 text-[var(--text)] outline-none"
-        title="Keyword case"
-      >
-        <option value="upper">UPPER keywords</option>
-        <option value="lower">lower keywords</option>
-        <option value="preserve">Preserve case</option>
-      </select>
-      <select
-        v-model="indent"
-        class="rounded-lg bg-[var(--ctrl-bg)] px-2 py-1.5 text-[var(--text)] outline-none"
-        title="Indentation"
-        :disabled="mode === 'minify'"
-      >
-        <option value="2">2 spaces</option>
-        <option value="4">4 spaces</option>
-        <option value="tab">Tabs</option>
-      </select>
-      <div class="flex rounded-lg bg-[var(--ctrl-bg)] p-0.5">
-        <button
-          v-for="m in (['format', 'minify'] as const)"
-          :key="m"
-          class="rounded-md px-3 py-1 capitalize transition-colors"
-          :class="
-            mode === m
-              ? 'bg-[var(--tab-active-bg)] text-[var(--tab-active-text)]'
-              : 'text-[var(--muted)] hover:text-[var(--text)]'
-          "
-          @click="mode = m"
-        >
-          {{ m }}
-        </button>
-      </div>
+    <div class="flex flex-wrap items-center justify-end gap-2 px-1">
+      <AppSelect v-model="dialect" :options="dialects" title="SQL dialect" />
+      <AppSelect v-model="keywordCase" :options="KEYWORD_CASES" title="Keyword case" />
+      <AppSelect v-model="indent" :options="INDENTS" title="Indentation" :disabled="mode === 'minify'" />
+      <SegmentedControl v-model="mode" :options="MODES" variant="solid" />
     </div>
 
     <div class="flex flex-col items-stretch gap-4 md:flex-row">
-      <!-- Source -->
-      <section
-        class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--panel)]"
-      >
-        <header class="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2.5">
-          <span class="text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)]">SQL INPUT</span>
-          <button
-            class="ml-auto rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--ctrl-bg)] hover:text-[var(--red)]"
-            title="Clear"
-            @click="source = ''"
-          >
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2m3 0v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6" />
-              <path d="M10 11v6M14 11v6" />
-            </svg>
-          </button>
-        </header>
+      <AppPanel label="SQL INPUT">
+        <template #actions>
+          <IconButton icon="trash" title="Clear" danger @click="source = ''" />
+        </template>
 
         <CodeArea
           ref="inputArea"
@@ -241,9 +204,7 @@ function useOutput() {
           min-height="460px"
         />
 
-        <footer
-          class="flex items-center gap-3.5 border-t border-[var(--border)] bg-[var(--panel-soft)] px-3 py-1.5 text-[11.5px] text-[var(--muted)]"
-        >
+        <template #footer>
           <span>{{ sourceLines }} lines · {{ source.length }} chars</span>
           <button
             v-if="problem"
@@ -263,42 +224,16 @@ function useOutput() {
             Formatted · not validated
           </span>
           <span v-else class="ml-auto font-semibold text-[var(--green)]">✓ Valid SQL</span>
-        </footer>
-      </section>
+        </template>
+      </AppPanel>
 
-      <!-- Output -->
-      <section
-        class="flex min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-[var(--border)] bg-[var(--panel)]"
-      >
-        <header class="flex items-center gap-2 border-b border-[var(--border)] px-3 py-2.5">
-          <span class="text-[11px] font-semibold tracking-[0.12em] text-[var(--muted)]">
-            {{ mode === 'format' ? 'FORMATTED' : 'MINIFIED' }}
-          </span>
-          <div class="ml-auto flex items-center gap-1.5">
-            <button
-              class="rounded-lg bg-[var(--ctrl-bg)] px-3 py-1.5 text-xs font-medium text-[var(--text)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] disabled:opacity-40"
-              title="Replace the input with this output"
-              :disabled="!output"
-              @click="useOutput"
-            >
-              ← Use as input
-            </button>
-            <button
-              class="rounded-md p-1.5 text-[var(--muted)] transition-colors hover:bg-[var(--ctrl-bg)] hover:text-[var(--text)] disabled:opacity-40"
-              title="Copy"
-              :disabled="!output"
-              @click="copy"
-            >
-              <svg v-if="!copied" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <rect x="9" y="9" width="11" height="11" rx="2" />
-                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
-              </svg>
-              <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20 6 9 17l-5-5" />
-              </svg>
-            </button>
-          </div>
-        </header>
+      <AppPanel :label="mode === 'format' ? 'FORMATTED' : 'MINIFIED'">
+        <template #actions>
+          <AppButton title="Replace the input with this output" :disabled="!output" @click="useOutput">
+            ← Use as input
+          </AppButton>
+          <CopyButton :text="output" />
+        </template>
 
         <CodeArea
           :model-value="output"
@@ -308,12 +243,10 @@ function useOutput() {
           :class="{ 'opacity-50': problem }"
         />
 
-        <footer
-          class="flex items-center gap-3.5 border-t border-[var(--border)] bg-[var(--panel-soft)] px-3 py-1.5 text-[11.5px] text-[var(--muted)]"
-        >
+        <template #footer>
           <span>{{ outputLines }} lines · {{ output.length }} chars</span>
-        </footer>
-      </section>
+        </template>
+      </AppPanel>
     </div>
   </div>
 </template>

@@ -16,7 +16,11 @@ const props = defineProps<{
   /** Problems to mark in the editor (1-based line/column). */
   errors?: CodeError[]
 }>()
-const emit = defineEmits<{ 'update:modelValue': [string] }>()
+const emit = defineEmits<{
+  'update:modelValue': [string]
+  /** Caret position (1-based), sent as the user types, clicks or moves. */
+  caret: [{ line: number; col: number }]
+}>()
 
 const textareaRef = ref<HTMLTextAreaElement | null>(null)
 const gutterRef = ref<HTMLDivElement | null>(null)
@@ -52,6 +56,13 @@ defineExpose({ revealLine })
 
 function onInput(e: Event) {
   emit('update:modelValue', (e.target as HTMLTextAreaElement).value)
+  onCaret(e)
+}
+
+function onCaret(e: Event) {
+  const ta = e.target as HTMLTextAreaElement
+  const before = ta.value.slice(0, ta.selectionStart)
+  emit('caret', { line: before.split('\n').length, col: ta.selectionStart - before.lastIndexOf('\n') })
 }
 
 /** Keep the gutter and highlight layer aligned with the textarea while scrolling. */
@@ -107,7 +118,10 @@ function syncScroll() {
         :readonly="readonly"
         spellcheck="false"
         class="absolute inset-0 resize-none overflow-auto bg-transparent px-3 py-3 font-[family-name:var(--mono)] text-[12.5px] leading-[1.55] whitespace-pre text-transparent caret-[var(--accent)] outline-none [tab-size:2]"
+        :class="readonly ? 'cursor-default caret-transparent' : ''"
         @input="onInput"
+        @click="onCaret"
+        @keyup="onCaret"
         @scroll="syncScroll"
       ></textarea>
     </div>

@@ -10,6 +10,7 @@
  * vowel signs come out wrong even with a Khmer font embedded), so documents
  * containing Khmer are printed through the browser, which shapes it correctly.
  */
+import { downloadBlob } from './download'
 import { buildCurl, type DocField, type DocModel } from './apiDocs'
 
 type Block =
@@ -321,10 +322,5 @@ export async function downloadDocx(m: DocModel, filename: string) {
     ],
   })
 
-  const blob = await Packer.toBlob(doc)
-  const a = document.createElement('a')
-  a.href = URL.createObjectURL(blob)
-  a.download = `${filename}.docx`
-  a.click()
-  URL.revokeObjectURL(a.href)
+  downloadBlob(await Packer.toBlob(doc), `${filename}.docx`)
 }
